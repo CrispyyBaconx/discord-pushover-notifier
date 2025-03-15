@@ -1,7 +1,7 @@
 mod notifier;
 
 use poise::serenity_prelude as serenity;
-use poise::Context;
+use poise::{Context, CreateReply};
 use serenity::{GatewayIntents, ClientBuilder};
 use pushover::Priority;
 use tokio::main;
@@ -64,20 +64,31 @@ async fn notify(
         .unwrap_or(MessagePriority::Normal)
         .into();
     
-    // these errors just send an error to the discord user (figure out how to send an ephemeral message?)
     if let Priority::Emergency { retry: ref mut r, expire: ref mut e, .. } = priority {
         let retry_value = retry.unwrap_or(30);
         if retry_value < 30 {
-            return Err(Error::msg("Emergency retry must be at least 30 seconds"));
+            ctx.send(CreateReply::default()
+                .content("Emergency retry must be at least 30 seconds")
+                .ephemeral(true)
+            ).await?;
+            return Ok(());
         }
         *r = retry_value;
 
         let expire_value = expire.unwrap_or(3600);
         if expire_value > 10800 {
-            return Err(Error::msg("Emergency expire must not exceed 10800 seconds (3 hours)"));
+            ctx.send(CreateReply::default()
+                .content("Emergency expire must not exceed 10800 seconds (3 hours)")
+                .ephemeral(true)
+            ).await?;
+            return Ok(());
         }
         if expire_value < retry_value {
-            return Err(Error::msg("Emergency expire must be greater than retry interval"));
+            ctx.send(CreateReply::default()
+                .content("Emergency expire must be greater than retry interval")
+                .ephemeral(true)
+            ).await?;
+            return Ok(());
         }
         *e = expire_value;
     }
