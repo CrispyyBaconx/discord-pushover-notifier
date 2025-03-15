@@ -1,0 +1,22 @@
+[package]
+name = "discord-pushover-notifier"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+reqwest = { version = "0.12.12", features = ["json"] }
+tokio = { version = "1.43.0", features = ["full"] }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.115"
+serenity = { version = "0.12.4", features = ["full"] } # can prob remove some features
+poise = "0.6.1"
+pushover = "0.4.0"
+ftail = "0.2.1"
+backon = "1.4.0"
+anyhow = "1.0.97"
+dotenvy = "0.15.7"
+log = "0.4.26"
+
+[[bin]]
+name = "discord-pushover-notifier"
+path = "main.rs"
