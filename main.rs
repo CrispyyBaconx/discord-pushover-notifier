@@ -103,8 +103,16 @@ async fn notify(
             error!("Failed to send notification: {:?}, retrying in {:?} seconds", err, duration.as_secs());
         })
         .await?;
+
+    let priority_str = match priority {
+        Priority::Emergency { .. } => "emergency",
+        Priority::High => "high",
+        Priority::Normal => "normal",
+        Priority::Low => "low",
+        Priority::Lowest => "lowest",
+    };
     
-    ctx.say(&format!("Notification has been sent with priority `{}`!", priority)).await?;
+    ctx.say(&format!("Notification has been sent with priority `{}`!", priority_str)).await?;
     Ok(())
 }
 
