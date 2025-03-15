@@ -125,7 +125,7 @@ async fn group(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
 }
 
 async fn event_handler(
-    _ctx: &SerenityContext, 
+    ctx: &SerenityContext, 
     event: &FullEvent,
     _framework: poise::FrameworkContext<'_, Data, Error>, 
     data: &Data,
@@ -151,6 +151,9 @@ async fn event_handler(
                     )
                     .sleep(tokio::time::sleep)
                     .await?;
+
+                // send success message
+                new_message.reply_ping(ctx, "Notification sent!").await?;
             }
         }
         _ => {}
@@ -171,7 +174,8 @@ async fn main() {
 
     Ftail::new()
         .console(LevelFilter::Warn)
-        .daily_file(log_dir.to_str().unwrap(), LevelFilter::Warn) // info gives too much heartbeat spam
+        // ! info gives too much heartbeat spam, switch to warn in prod
+        .daily_file(log_dir.to_str().unwrap(), LevelFilter::Info)
         .max_file_size(1024 * 1024 * 10)
         .retention_days(1)
         .init()
