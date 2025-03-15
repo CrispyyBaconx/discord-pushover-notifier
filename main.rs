@@ -51,7 +51,7 @@ impl From<MessagePriority> for Priority {
 }
 
 /// Send a notification through Pushover
-#[poise::command(slash_command)]
+#[poise::command(slash_command, prefix_command)]
 async fn notify(
     ctx: Context<'_, Data, Error>,
     #[description = "The message to send"] message: String,
@@ -109,7 +109,7 @@ async fn notify(
 }
 
 /// Show the Pushover group link
-#[poise::command(slash_command)]
+#[poise::command(slash_command, prefix_command)]
 async fn group(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
     let group_link = env::var("GROUP_LINK").unwrap(); // we checked this on startup
     ctx.say(&format!("[Pushover Group Link]({})", group_link)).await?;
@@ -142,6 +142,11 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
+            prefix_options: poise::PrefixFrameworkOptions {
+                prefix: Some("!".into()),
+                case_insensitive_commands: true,
+                ..Default::default()
+            },
             commands: vec![
                 notify(),
                 group(),
@@ -157,7 +162,9 @@ async fn main() {
         })
         .build();
     
-    let mut client = ClientBuilder::new(&token, GatewayIntents::non_privileged())
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+
+    let mut client = ClientBuilder::new(&token, intents)
         .framework(framework)
         .await
         .unwrap();
