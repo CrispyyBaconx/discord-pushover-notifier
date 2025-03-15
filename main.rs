@@ -103,16 +103,8 @@ async fn notify(
             error!("Failed to send notification: {:?}, retrying in {:?} seconds", err, duration.as_secs());
         })
         .await?;
-
-    let priority_str = match priority {
-        Priority::Emergency { .. } => "emergency",
-        Priority::High => "high",
-        Priority::Normal => "normal",
-        Priority::Low => "low",
-        Priority::Lowest => "lowest",
-    };
     
-    ctx.say(&format!("Notification has been sent with priority `{}`!", priority_str)).await?;
+    ctx.say(&format!("\"{}\" sent", &message)).await?;
     Ok(())
 }
 
@@ -153,7 +145,7 @@ async fn event_handler(
                     .await?;
 
                 // send success message
-                new_message.reply_ping(ctx, "Notification sent!").await?;
+                new_message.reply_ping(ctx, &format!("{} @everyone", &message.to_uppercase())).await?;
             }
         }
         _ => {}
