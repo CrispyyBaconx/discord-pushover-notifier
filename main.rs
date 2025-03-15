@@ -55,13 +55,13 @@ impl From<MessagePriority> for Priority {
 async fn notify(
     ctx: Context<'_, Data, Error>,
     #[description = "The message to send"] message: String,
-    #[description = "The priority of the notification"] priority: Option<MessagePriority>,
+    #[description = "The priority of the notification (default: emergency)"] priority: Option<MessagePriority>,
     #[description = "For emergency priority: seconds between retries (min 30)"] retry: Option<u32>,
     #[description = "For emergency priority: seconds until expiration (max 10800)"] expire: Option<u32>,
 ) -> Result<(), Error> {
     let notifier = &ctx.data().notifier;
     let mut priority: Priority = priority
-        .unwrap_or(MessagePriority::Normal)
+        .unwrap_or(MessagePriority::Emergency)
         .into();
     
     if let Priority::Emergency { retry: ref mut r, expire: ref mut e, .. } = priority {
@@ -75,7 +75,7 @@ async fn notify(
         }
         *r = retry_value;
 
-        let expire_value = expire.unwrap_or(3600);
+        let expire_value = expire.unwrap_or(15 * 60); // 15m
         if expire_value > 10800 {
             ctx.send(CreateReply::default()
                 .content("Emergency expire must not exceed 10800 seconds (3 hours)")
@@ -109,8 +109,6 @@ async fn notify(
 }
 
 /// Show the Pushover group link
-///
-/// Get the link to join the Pushover notification group for this bot
 #[poise::command(slash_command)]
 async fn group(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
     let group_link = env::var("GROUP_LINK").unwrap(); // we checked this on startup
