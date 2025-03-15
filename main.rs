@@ -137,7 +137,7 @@ async fn main() {
 
     Ftail::new()
         .console(LevelFilter::Warn)
-        .daily_file(log_dir.to_str().unwrap(), LevelFilter::Debug)
+        .daily_file(log_dir.to_str().unwrap(), LevelFilter::Warn) // info gives too much heartbeat spam
         .max_file_size(1024 * 1024 * 10)
         .retention_days(1)
         .init()
