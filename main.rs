@@ -2,7 +2,7 @@ mod notifier;
 
 use poise::serenity_prelude as serenity;
 use poise::{Context, CreateReply};
-use serenity::{GatewayIntents, ClientBuilder};
+use serenity::{GatewayIntents, ClientBuilder, FullEvent, Context as SerenityContext};
 use pushover::Priority;
 use tokio::main;
 use dotenvy::dotenv;
@@ -51,7 +51,7 @@ impl From<MessagePriority> for Priority {
 }
 
 /// Send a notification through Pushover
-#[poise::command(slash_command, prefix_command, aliases("n"))]
+#[poise::command(slash_command, aliases("n"))]
 async fn notify(
     ctx: Context<'_, Data, Error>,
     #[description = "The message to send"] message: String,
@@ -117,10 +117,44 @@ async fn notify(
 }
 
 /// Show the Pushover group link
-#[poise::command(slash_command, prefix_command)]
+#[poise::command(slash_command)]
 async fn group(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
     let group_link = env::var("GROUP_LINK").unwrap(); // we checked this on startup
     ctx.say(&format!("[Pushover Group Link]({})", group_link)).await?;
+    Ok(())
+}
+
+async fn event_handler(
+    _ctx: &SerenityContext, 
+    event: &FullEvent,
+    _framework: poise::FrameworkContext<'_, Data, Error>, 
+    data: &Data,
+) -> Result<(), Error> {
+    match event {
+        FullEvent::Ready { data_about_bot, .. } => {
+            println!("Logged in as {}!", data_about_bot.user.name);
+        }
+        FullEvent::Message { new_message } => {
+            // if the message starts with "!" send a pushover notification with the default priority + retry/expire
+            if new_message.content.starts_with("!") {
+                let priority = Priority::Emergency {
+                    retry: 30,
+                    expire: 15 * 60,
+                    callback_url: None,
+                };
+                let message = new_message.content[1..].to_string();
+
+                (|| data.notifier.send_pushover_message(&message, &priority))
+                    .retry(FibonacciBuilder::default()
+                        .with_min_delay(Duration::from_secs(1))
+                        .with_max_delay(Duration::from_secs(10))
+                    )
+                    .sleep(tokio::time::sleep)
+                    .await?;
+            }
+        }
+        _ => {}
+    }
     Ok(())
 }
 
@@ -150,10 +184,8 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            prefix_options: poise::PrefixFrameworkOptions {
-                prefix: Some("!".into()),
-                case_insensitive_commands: true,
-                ..Default::default()
+            event_handler: |ctx, event, framework, data| {
+                Box::pin(event_handler(ctx, event, framework, data))
             },
             commands: vec![
                 notify(),
