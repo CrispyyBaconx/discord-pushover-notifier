@@ -51,7 +51,7 @@ impl From<MessagePriority> for Priority {
 }
 
 /// Send a notification through Pushover
-#[poise::command(slash_command, prefix_command)]
+#[poise::command(slash_command, prefix_command, aliases("n"))]
 async fn notify(
     ctx: Context<'_, Data, Error>,
     #[description = "The message to send"] message: String,
