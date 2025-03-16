@@ -3,6 +3,13 @@ FROM rust:1.85.0-slim-bookworm as builder
 
 WORKDIR /app
 
+# Install OpenSSL development packages and pkg-config for the build process
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy over manifests
 COPY Cargo.toml Cargo.lock ./
 
