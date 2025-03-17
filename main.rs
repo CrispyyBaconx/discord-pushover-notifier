@@ -17,6 +17,7 @@ use std::time::Duration;
 // this is an available context for all slash commands
 pub struct Data {
     notifier: Notifier,
+    notifier_role_id: u64,
 }
 
 /// Available priority levels for notifications
@@ -59,6 +60,16 @@ async fn notify(
     #[description = "For emergency priority: seconds between retries (min 30)"] retry: Option<u32>,
     #[description = "For emergency priority: seconds until expiration (max 10800)"] expire: Option<u32>,
 ) -> Result<(), Error> {
+    // Check if user has the required role
+    let member = ctx.author_member().await.unwrap();
+    if !member.roles.contains(&serenity::RoleId::new(ctx.data().notifier_role_id)) {
+        ctx.send(CreateReply::default()
+            .content("You don't have permission to use this command, nigga")
+            .ephemeral(true)
+        ).await?;
+        return Ok(());
+    }
+
     let notifier = &ctx.data().notifier;
     let mut priority: Priority = priority
         .unwrap_or(MessagePriority::Emergency)
@@ -129,6 +140,13 @@ async fn event_handler(
         FullEvent::Message { new_message } => {
             // if the message starts with "!" send a pushover notification with the default priority + retry/expire
             if new_message.content.starts_with("!") {
+                // check if user has the required role
+                let member = new_message.member(ctx).await.unwrap();
+                if !member.roles.contains(&serenity::RoleId::new(data.notifier_role_id)) {
+                    new_message.reply(ctx, "You don't have permission to use this command, nigga").await?;
+                    return Ok(());
+                }
+                
                 let priority = Priority::Emergency {
                     retry: 30,
                     expire: 15 * 60,
@@ -177,6 +195,10 @@ async fn main() {
     // just check that the group link is set
     env::var("GROUP_LINK").expect("GROUP_LINK must be set");
     let notifier = Notifier::new().expect("Failed to create notifier");
+    let notifier_role_id = env::var("NOTIFIER_ROLE_ID")
+        .expect("NOTIFIER_ROLE_ID must be set")
+        .parse::<u64>()
+        .expect("NOTIFIER_ROLE_ID must be a valid u64");
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
@@ -189,11 +211,11 @@ async fn main() {
             ],
             ..Default::default()
         })
-        .setup(|ctx, _ready, framework| {
+        .setup(move |ctx, _ready, framework| {
             Box::pin(async move {
                 println!("Bot is ready!");
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data { notifier })
+                Ok(Data { notifier, notifier_role_id })
             })
         })
         .build();
