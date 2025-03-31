@@ -229,6 +229,7 @@ async fn main() {
             },
             commands: vec![
                 notify(),
+                n(),
                 group(),
             ],
             ..Default::default()
