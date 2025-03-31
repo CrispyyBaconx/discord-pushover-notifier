@@ -52,7 +52,7 @@ impl From<MessagePriority> for Priority {
 }
 
 /// Send a notification through Pushover
-#[poise::command(slash_command, aliases("n"))]
+#[poise::command(slash_command)]
 async fn notify(
     ctx: Context<'_, Data, Error>,
     #[description = "The message to send"] message: String,
@@ -60,63 +60,85 @@ async fn notify(
     #[description = "For emergency priority: seconds between retries (min 30)"] retry: Option<u32>,
     #[description = "For emergency priority: seconds until expiration (max 10800)"] expire: Option<u32>,
 ) -> Result<(), Error> {
-    // Check if user has the required role
-    let member = ctx.author_member().await.unwrap();
-    if !member.roles.contains(&serenity::RoleId::new(ctx.data().notifier_role_id)) {
-        ctx.send(CreateReply::default()
-            .content("You don't have permission to use this command, nigga")
-            .ephemeral(true)
-        ).await?;
-        return Ok(());
-    }
+    _notify(ctx, message, priority, retry, expire).await
+}
 
-    let notifier = &ctx.data().notifier;
-    let mut priority: Priority = priority
-        .unwrap_or(MessagePriority::Emergency)
-        .into();
-    
-    if let Priority::Emergency { retry: ref mut r, expire: ref mut e, .. } = priority {
-        let retry_value = retry.unwrap_or(30);
-        if retry_value < 30 {
-            ctx.send(CreateReply::default()
-                .content("Emergency retry must be at least 30 seconds")
-                .ephemeral(true)
-            ).await?;
-            return Ok(());
-        }
-        *r = retry_value;
+/// Send a notification through Pushover, alias for /notify
+#[poise::command(slash_command)]
+async fn n(
+    ctx: Context<'_, Data, Error>,
+    #[description = "The message to send"] message: String,
+    #[description = "The priority of the notification (default: emergency)"] priority: Option<MessagePriority>,
+    #[description = "For emergency priority: seconds between retries (min 30)"] retry: Option<u32>,
+    #[description = "For emergency priority: seconds until expiration (max 10800)"] expire: Option<u32>,
+) -> Result<(), Error> {
+    _notify(ctx, message, priority, retry, expire).await
+}
 
-        let expire_value = expire.unwrap_or(15 * 60); // 15m
-        if expire_value > 10800 {
+async fn _notify(
+    ctx: Context<'_, Data, Error>,
+    message: String,
+    priority: Option<MessagePriority>,
+    retry: Option<u32>,
+    expire: Option<u32>,
+) -> Result<(), Error> {
+        // Check if user has the required role
+        let member = ctx.author_member().await.unwrap();
+        if !member.roles.contains(&serenity::RoleId::new(ctx.data().notifier_role_id)) {
             ctx.send(CreateReply::default()
-                .content("Emergency expire must not exceed 10800 seconds (3 hours)")
+                .content("You don't have permission to use this command, nigga")
                 .ephemeral(true)
             ).await?;
             return Ok(());
         }
-        if expire_value < retry_value {
-            ctx.send(CreateReply::default()
-                .content("Emergency expire must be greater than retry interval")
-                .ephemeral(true)
-            ).await?;
-            return Ok(());
+    
+        let notifier = &ctx.data().notifier;
+        let mut priority: Priority = priority
+            .unwrap_or(MessagePriority::Emergency)
+            .into();
+        
+        if let Priority::Emergency { retry: ref mut r, expire: ref mut e, .. } = priority {
+            let retry_value = retry.unwrap_or(30);
+            if retry_value < 30 {
+                ctx.send(CreateReply::default()
+                    .content("Emergency retry must be at least 30 seconds")
+                    .ephemeral(true)
+                ).await?;
+                return Ok(());
+            }
+            *r = retry_value;
+    
+            let expire_value = expire.unwrap_or(15 * 60); // 15m
+            if expire_value > 10800 {
+                ctx.send(CreateReply::default()
+                    .content("Emergency expire must not exceed 10800 seconds (3 hours)")
+                    .ephemeral(true)
+                ).await?;
+                return Ok(());
+            }
+            if expire_value < retry_value {
+                ctx.send(CreateReply::default()
+                    .content("Emergency expire must be greater than retry interval")
+                    .ephemeral(true)
+                ).await?;
+                return Ok(());
+            }
+            *e = expire_value;
         }
-        *e = expire_value;
-    }
-    
-    (|| notifier.send_pushover_message(&message, &priority))
-        .retry(FibonacciBuilder::default()
-            .with_min_delay(Duration::from_secs(1))
-            .with_max_delay(Duration::from_secs(10))
-        )
-        .sleep(tokio::time::sleep)
-        .notify(|err: &Error, duration: Duration| {
-            error!("Failed to send notification: {:?}, retrying in {:?} seconds", err, duration.as_secs());
-        })
-        .await?;
-    
-    ctx.say(&format!("\"{}\" sent", &message)).await?;
-    Ok(())
+        
+        (|| notifier.send_pushover_message(&message, &priority))
+            .retry(FibonacciBuilder::default()
+                .with_min_delay(Duration::from_secs(1))
+                .with_max_delay(Duration::from_secs(10))
+            )
+            .sleep(tokio::time::sleep)
+            .notify(|err: &Error, duration: Duration| {
+                error!("Failed to send notification: {:?}, retrying in {:?} seconds", err, duration.as_secs());
+            })
+            .await?;
+        
+        ctx.say(&format!("\"{}\" sent", &message)).await?;
+        Ok(())    
 }
 
 /// Show the Pushover group link
@@ -148,8 +170,8 @@ async fn event_handler(
                 }
                 
                 let priority = Priority::Emergency {
-                    retry: 30,
-                    expire: 15 * 60,
+                    retry: 30, // 30 seconds
+                    expire: 15 * 60, // 15 minutes
                     callback_url: None,
                 };
                 let message = new_message.content[1..].to_string();
