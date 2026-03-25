@@ -2,6 +2,7 @@
 name = "discord-pushover-notifier"
 version = "1.0.0"
 edition = "2024"
+license = "GPL-3.0-only"
 
 [dependencies]
 tokio = { version = "1.43.0", features = ["full"] }
