@@ -2,18 +2,19 @@
 name = "discord-pushover-notifier"
 version = "1.0.0"
 edition = "2024"
+rust-version = "1.97.1"
 license = "GPL-3.0-only"
 
 [dependencies]
-tokio = { version = "1.43.0", features = ["full"] }
-serenity = { version = "0.12.4", features = ["full"] } # can prob remove some features
-poise = "0.6.1"
+tokio = { version = "1.53.1", features = ["full"] }
+serenity = { version = "0.12.5", features = ["full"] } # can prob remove some features
+poise = "0.6.2"
 pushover = "0.4.0"
-ftail = "0.2.1"
-backon = "1.4.0"
-anyhow = "1.0.97"
+ftail = "0.3.1"
+backon = "1.6.0"
+anyhow = "1.0.104"
 dotenvy = "0.15.7"
-log = "0.4.26"
+log = "0.4.33"
 
 [[bin]]
 name = "discord-pushover-notifier"
