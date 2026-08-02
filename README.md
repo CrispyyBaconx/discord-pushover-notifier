@@ -17,7 +17,7 @@ A Discord bot that forwards messages to [Pushover](https://pushover.net/) as pus
 
 ### Prerequisites
 
-- Rust 1.85+ (2024 edition) or Docker
+- Rust 1.97.1+ (2024 edition) or Docker
 - A [Pushover](https://pushover.net/) account with an application token
 - A [Discord bot](https://discord.com/developers/applications) token with the Message Content privileged intent enabled
 
