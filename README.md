@@ -6,6 +6,7 @@ A Discord bot that forwards messages to [Pushover](https://pushover.net/) as pus
 
 - **Slash commands** — `/notify` (or `/n`) to send a notification with optional priority, retry, and expiry settings
 - **Quick alerts** — prefix any message with `!` to instantly fire an emergency-priority Pushover notification and ping `@everyone`
+- **Bot mentions** — mention the bot with a message to send an emergency-priority Pushover notification
 - **Priority levels** — Lowest, Low, Normal, High, and Emergency (with configurable retry/expire for Emergency)
 - **Role gating** — only members with a configured Discord role can trigger notifications
 - **Group link** — `/group` command shares your Pushover group invite link
@@ -56,6 +57,7 @@ docker run -d --env-file .env --name pushover-bot discord-pushover-notifier
 | `/n <message> [priority] [retry] [expire]` | Alias for `/notify` |
 | `/group` | Show the Pushover group invite link |
 | `!<message>` | Quick emergency notification (30s retry, 15m expire) + `@everyone` ping |
+| `@bot <message>` | Emergency notification (30s retry, 15m expire) |
 
 Priority defaults to **Emergency** if omitted. For Emergency priority, `retry` (minimum 30s) and `expire` (maximum 10800s / 3 hours) can be customized; they default to 30s and 15 minutes respectively.
 

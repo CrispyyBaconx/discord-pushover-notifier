@@ -48,6 +48,7 @@ mod tests {
     use super::*;
     
     #[tokio::test]
+    #[ignore = "requires live Pushover credentials and sends a real notification"]
     async fn test_send_pushover_message() {
         let notifier = Notifier::new().unwrap();
         let result = notifier.send_pushover_message("Testing", &Priority::Normal).await;

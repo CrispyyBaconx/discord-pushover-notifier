@@ -20,6 +20,33 @@ pub struct Data {
     notifier_role_id: u64,
 }
 
+#[derive(Clone, Copy)]
+enum EmergencyTrigger {
+    Prefix,
+    Mention(serenity::UserId),
+}
+
+fn emergency_message(content: &str, trigger: EmergencyTrigger) -> Option<String> {
+    let message = match trigger {
+        EmergencyTrigger::Prefix => content.strip_prefix('!')?.to_owned(),
+        EmergencyTrigger::Mention(bot_user_id) => {
+            let standard_mention = format!("<@{}>", bot_user_id.get());
+            let legacy_mention = format!("<@!{}>", bot_user_id.get());
+            let message = content.replace(&format!("{standard_mention} "), "");
+            let message = message.replace(&standard_mention, "");
+            let message = message.replace(&format!("{legacy_mention} "), "");
+            message.replace(&legacy_mention, "")
+        }
+    };
+    let message = message.trim();
+
+    if message.is_empty() {
+        return None;
+    }
+
+    Some(message.to_owned())
+}
+
 /// Available priority levels for notifications
 #[derive(poise::ChoiceParameter)]
 pub enum MessagePriority {
@@ -86,7 +113,7 @@ async fn _notify(
         let member = ctx.author_member().await.unwrap();
         if !member.roles.contains(&serenity::RoleId::new(ctx.data().notifier_role_id)) {
             ctx.send(CreateReply::default()
-                .content("You don't have permission to use this command, nigga")
+                .content("You don't have permission to use this command")
                 .ephemeral(true)
             ).await?;
             return Ok(());
@@ -137,7 +164,7 @@ async fn _notify(
             })
             .await?;
         
-        ctx.say(&format!("\"{}\" sent", &message)).await?;
+        ctx.say(&format!("\"{}\" sent", message)).await?;
         Ok(())    
 }
 
@@ -160,32 +187,50 @@ async fn event_handler(
             println!("Logged in as {}!", data_about_bot.user.name);
         }
         FullEvent::Message { new_message } => {
-            // if the message starts with "!" send a pushover notification with the default priority + retry/expire
-            if new_message.content.starts_with("!") {
-                // check if user has the required role
-                let member = new_message.member(ctx).await.unwrap();
-                if !member.roles.contains(&serenity::RoleId::new(data.notifier_role_id)) {
-                    new_message.reply(ctx, "You don't have permission to use this command, nigga").await?;
-                    return Ok(());
+            if new_message.author.bot {
+                return Ok(());
+            }
+
+            let bot_user_id = ctx.cache.current_user().id;
+            let trigger = if new_message.content.starts_with('!') {
+                EmergencyTrigger::Prefix
+            } else if new_message.mentions_user_id(bot_user_id) {
+                EmergencyTrigger::Mention(bot_user_id)
+            } else {
+                return Ok(());
+            };
+            let Some(message) = emergency_message(&new_message.content, trigger) else {
+                return Ok(());
+            };
+            let Ok(member) = new_message.member(ctx).await else {
+                return Ok(());
+            };
+            if !member.roles.contains(&serenity::RoleId::new(data.notifier_role_id)) {
+                new_message.reply(ctx, "You don't have permission to use this command").await?;
+                return Ok(());
+            }
+
+            let priority = Priority::Emergency {
+                retry: 30,
+                expire: 15 * 60,
+                callback_url: None,
+            };
+
+            (|| data.notifier.send_pushover_message(&message, &priority))
+                .retry(FibonacciBuilder::default()
+                    .with_min_delay(Duration::from_secs(1))
+                    .with_max_delay(Duration::from_secs(10))
+                )
+                .sleep(tokio::time::sleep)
+                .await?;
+
+            match trigger {
+                EmergencyTrigger::Prefix => {
+                    new_message.reply_ping(ctx, &format!("{} @everyone", message.to_uppercase())).await?;
                 }
-                
-                let priority = Priority::Emergency {
-                    retry: 30, // 30 seconds
-                    expire: 15 * 60, // 15 minutes
-                    callback_url: None,
-                };
-                let message = new_message.content[1..].to_string();
-
-                (|| data.notifier.send_pushover_message(&message, &priority))
-                    .retry(FibonacciBuilder::default()
-                        .with_min_delay(Duration::from_secs(1))
-                        .with_max_delay(Duration::from_secs(10))
-                    )
-                    .sleep(tokio::time::sleep)
-                    .await?;
-
-                // send success message
-                new_message.reply_ping(ctx, &format!("{} @everyone", &message.to_uppercase())).await?;
+                EmergencyTrigger::Mention(_) => {
+                    new_message.reply(ctx, "Notification sent").await?;
+                }
             }
         }
         _ => {}
@@ -251,4 +296,50 @@ async fn main() {
         .unwrap();
 
     client.start().await.unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BOT_USER_ID: serenity::UserId = serenity::UserId::new(42);
+
+    #[test]
+    fn extracts_prefix_message() {
+        let message = emergency_message("!there is an emergency!", EmergencyTrigger::Prefix);
+
+        assert_eq!(message.as_deref(), Some("there is an emergency!"));
+    }
+
+    #[test]
+    fn extracts_standard_bot_mention_message() {
+        let message = emergency_message(
+            "<@42> there is an emergency!",
+            EmergencyTrigger::Mention(BOT_USER_ID),
+        );
+
+        assert_eq!(message.as_deref(), Some("there is an emergency!"));
+    }
+
+    #[test]
+    fn extracts_legacy_bot_mention_anywhere_in_message() {
+        let message = emergency_message(
+            "there is <@!42> an emergency!",
+            EmergencyTrigger::Mention(BOT_USER_ID),
+        );
+
+        assert_eq!(message.as_deref(), Some("there is an emergency!"));
+    }
+
+    #[test]
+    fn rejects_empty_emergency_message() {
+        assert_eq!(
+            emergency_message("!   ", EmergencyTrigger::Prefix),
+            None,
+        );
+        assert_eq!(
+            emergency_message("<@42>", EmergencyTrigger::Mention(BOT_USER_ID)),
+            None,
+        );
+    }
 }
