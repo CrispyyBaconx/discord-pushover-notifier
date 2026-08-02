@@ -229,7 +229,7 @@ async fn event_handler(
                     new_message.reply_ping(ctx, &format!("{} @everyone", message.to_uppercase())).await?;
                 }
                 EmergencyTrigger::Mention(_) => {
-                    new_message.reply(ctx, &format!("\"{}\" sent", message)).await?;
+                    new_message.reply(ctx, "Notification sent").await?;
                 }
             }
         }
